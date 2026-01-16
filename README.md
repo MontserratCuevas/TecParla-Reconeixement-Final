@@ -1,127 +1,108 @@
-Ejercicio Final de TecParla
-===========================
 
-El alumno debe realizar un *fork* del repositorio GitHub del trabajo final. A partir de ese momento, deberá trabajar
-con una copia local de su fork.
+# Ejercicio Final de TecParla
 
-Los resultados solicitados se incluirán en el fichero `README.md` del repositorio. Es decir, deberá sustituir este
-enunciado por su documento. La calidad y *belleza* del documento influirá en gran medida en la nota obtenida.
 
-La entrega consistirá en un *pull-request* con el resultado y una defensa oral del mismo.
+## Introducción
 
-Objetivos del ejercicio
------------------------
+Este proyecto tiene como objetivo la construcción de un sistema de reconocimiento de vocales altamente preciso, integrando técnicas avanzadas de extracción de características y modelado acústico. Se ha optimizado cada componente mediante un análisis de todos los parámetros que le influyen.
 
-Los objetivos principales del ejercicio final son:
 
-- Construir un sistema de reconocimiento de vocales tan preciso como sea posible
-- Implementar técnicas de extracción de características y modelado acústico no vistas en clase
-- Presentar los resultados en un repositorio de GitHub que convenza al potencial comprador de la calidad del
-  producto
+## Técnicas de extracción de características
 
-Tareas a realizar
------------------
+### Estimación espectral con Periodograma y Clasificador Gaussiano
 
-### Técnicas de extracción de características
+Para poder comparar los distintos sistemas vamos a partir de nuestro sistema anteriormente implementado en clase.
 
-Se deberán implementar dos técnicas de extracción de características no vistas en las clases pero sí
-explicadas en los apuntes:
+En este utilizó el Periodograma mediante la Transformada Rápida de Fourier (FFT) para obtener la distribución de energía de la señal en el dominio de la frecuencia.
 
-- Estimación espectral de Máxima Entropía
-- Coeficiente cepstrales en escala Mel (MFCC)
+Se empleó la clase Gauss, que asume que las características de cada vocal siguen una distribución gaussiana única y estas quedan definida por un vector de medias y una matriz de covarianzas, clasificando las muestras nuevas mediante la probabilidad de pertenencia a dicha campana.
 
-#### Implementación del estimador de Máxima Entropía
+![alt text](imágenes/datos_coef.png)
 
-Se implementará el estimador de Máxima Entropía y se optimizará el orden del análisis LPC.
+**Número de Coeficientes:** Se analizó cuántos componentes del espectro eran necesarios para distinguir las vocales. Como se observa en la gráfica datos_coef.png, el rendimiento aumenta hasta los 15 coeficientes, luego se satura y empieza a decrecer.
 
-Deberá justificarse la elección del orden mediante gráficas y tablas (es decir, tanto gráficas como
-tablas) que muestren con claridad la exactitud alcanzada en función de los valores de ambos parámetros.
+![alt text](imágenes/datos_eps.png)
 
-Por ejemplo:
+**Valor de EPS:** Se ajustó el suelo de ruido logarítmico para garantizar la estabilidad numérica de los cálculos. 
 
-![ceps.png](imágenes/ceps-orden-gauss.png)
 
-y
+### Estimación espectral de Máxima Entropía con LPC
 
-![eps.png](imágenes/eps.png)
+La estimación espectral de máxima entropía se basa en la predicción lineal (LPC). En lugar de usar la FFT directamente, asume que la señal sigue un modelo de filtro.
 
-También se deberá presentar una figura con seis gráficas que muestren el modelo de cada una de las cinco
-vocales y la comparación de las cinco. Algo semejante a la figura siguiente:
+![alt text](imágenes/grafica_lpc.png)
 
-![Modelos usando Máxima Entropía](imágenes/modME.png)
+Aunque en la grafica se observa un pico puntual en p=20, el valor p=14 ofrece un resultado de 84.50%, siendo computacionalmente más ligero y con menos probabilidades de coger el ruido de la señal.
 
-#### Utilización de los coeficientes cepstrales en escala Mel (MFCC)
+![alt text](imágenes/modelos_vocales_maxent.png)
 
-Se usará la biblioteca `python_speech_features` para incorporar a `ramses` los coeficientes MFCC. En la sección
-4.4.3 de los apuntes hay una explicación de estos coeficientes, aunque no se proporciona su implementación detallada.
+Como las señales están muestreadas a 8000 Hz, la gráfica llega hasta la frecuencia de Nyquist (4000 Hz).El orden $p=14$ es ideal aquí porque permite definir con precisión los 3 o 4 formantes principales que caen en este rango, eliminando las variaciones irrelevantes de la fuente glotal.
 
-Deberán optimizarse todos los parámetros involucrados en el cálculo de los MFCC, pero, en concreto, deberá seleccionarse
-la mejor combinación del número de coeficientes y del número de bandas del banco de filtros.
+Se observa con claridad cómo cada vocal tiene una "huella dactilar" única basada en la posición de sus picos.Por ejemplo, en la vocal **i** se aprecia un primer formante bajo y un segundo formante muy alto , mientras que en la **a** los dos primeros formantes están más juntos y centrados.
+Al superponer las cinco curvas, se hace evidente el solapamiento y las diferencias. El clasificador utiliza precisamente estas diferencias en la posición de los picos para decidir qué vocal se está pronunciando.
 
-Para el número de coeficientes y de bandas deberá aportarse justificación gráfica adecuada para apoyar la elección.
 
-### Modelado acústico
+### Estimación espectral de Máxima Entropía con MFCC
 
-Se implementarán dos técnicas de modelado acústico no vistas durante el curso, pero de las cuales se proporcionan
-apuntes:
+A diferencia del LPC que modela el tracto vocal, los MFCC modelan la audición humana mediante una escala logarítmica de frecuencias (Mel).
 
-- Modelo de mezcla de Gaussianas
-- Redes neuronales usando PyTorch
+![alt text](imágenes/optimizacion_mfcc_heatmap.png)
 
-#### Modelo de mezcla de Gaussianas
+Podemos observar que los porcentajes de exactitud son más altos que en el caso anterior. Esto es debido a que LPC trata por igual las diferencias de frecuencia en los graves que en los agudos. En cambio MFCC utiliza la escala Mel, que imita el oído humano, es decir, concentra la resolución donde más importa para distinguir el habla. Lo hace mediante la DCT que transforma los datos a un dominio donde los coeficientes están decorrelacionados. 
 
-Se implementará el modelo de mezcla de gaussianas presentado en el apartado 5.4 de los apuntes.
+La configuración más óptima para escuchar el espectro es usar los primeros 15 coeficientes y 20 filtos.
 
-Será necesario implementar una inicialización de las gaussianas, para lo que se propone el siguiente:
+## Modelado acústico
 
-- La covarianza de las `N` gaussianas del modelo de cada vocal será la misma e igual a la covarianza del conjunto
-  de realizaciones de entrenamiento. Se utilizarán matrices de covarianza diagonales.
-- Como media de las `N` gaussianas de la mezcla se tomarán `N` señales aleatorias de la correspondiente vocal.
+### Modelado de mezcla de gaussianas
 
-Esta inicialización es sub-óptima pero razonable y sencilla; se invita al alumno a implementar una más potente.
+El mezcla de gaussianas permite representar cada vocal como una combinación de varias distribuciones, capturando mejor la variabilidad entre diferentes locutores.
 
-Deberá optimizarse el número de gaussianas por mezcla y apoyar la elección con gráficas y tablas adecuadas.
+![alt text](imágenes/grafica_gmm_barras.png)
 
-#### Modelado usando redes neuronales
+El valor óptimo seria usar **8** gaussianas. Podemos opservar que a partir de 8 va incrementando muy poco a poco y aunque el resultado es un poco mejor necesita más carga computacional para llegar a él.
 
-Incorporación de redes neuronales implementadas con PyTorch a `ramses`. Dispone de una explicación de cómo hacerlo
-en el fichero `neuras.pdf`.
+### Modelado usando redes neuronales
 
-Deberá implementar el perceptrón multicapa y optimizar:
+Este sistema a diferencia del anterior, tiene un enfoque discriminativo; no le importa cómo es la vocal por dentro; solo le importa dónde está la frontera que la separa de las demás. Al enfocarse solo en "qué hace que una **a** no sea una **e**" lo mucho más eficiente y preciso.
 
-- Número de capas del perceptrón.
-- Número de neuronas por capa.
-- Función de activación: sigmoide o ReLU.
+![alt text](imágenes/analisis_mlp_profesional.png)
 
-### Optimización de la exactitud del reconocimiento
+Analizando la gràfica podemos identificar:
 
-Deberá seleccionarse el mejor sistema posible, usando la combinación de técnicas y parámetros que se consideren óptimos.
-Este sistema será el implementado al ejecutar el script `ramses/todo.sh` sin modificaciones ni argumentos. Es decir, el
-profesor ejecutará la orden `ramses/todo.sh` y el resultado que se obtenga será el resultado que considere de cara a la
-evaluación del trabajo.
+**El impacto crítico de la función de activación:**
+Las configuraciones con ReLU alcanzan consistentemente precisiones superiores al 95-96%. Esto se debe a que ReLU evita el problema del desvanecimiento del gradiente, permitiendo que la red aprenda de forma mucho más eficiente en arquitecturas profundas.
+Por otra parte las curvas naranjas muestran un rendimiento inferior y más inestable, especialmente con pocas neuronas.
 
-Evaluación del trabajo
-----------------------
+**Optimización de la Arquitectura:**
+En el mapa de calor de la derecha, se puede ver el punto óptimo. El valor máximo de **96.70%** se alcanza con **2** capas ocultas y **128** neuronas por capa usando ReLU.
 
-La evaluación del trabajo presentado considerará los aspectos siguientes; más o menos en la misma medida:
+Se observa que pasar de 2 a 3 capas no mejora el resultado. Con 2 capas ya somos capaces de modelar perfectamente las fronteras de decisión de las vocales; añadir una tercera capa solo introduce riesgo de sobreajuste (overfitting) o ruido.
 
-- Completitud del trabajo. No se supone que se consiga completar todos los apartados, pero sí será necesario para obtener
-  en este aspecto la máxima nota.
-- Exactitud alcanzada. Este aspecto es competitivo: en principio, el alumno que consiga la máxima exactitud obtendrá un
-  10 en el mismo; el alumno que consiga el peor reaultado, obtendrá un 0.
-  - En caso de pocos alumnos o resultados *complicados*, también se tendrá en cuenta el resultado obtenido con el
-    sistema desarrollado en clase.
-- Originalidad del trabajo. Se tendrá en cuenta el *excesivo* parecido entre trabajos distintos. También se valorará la
-  *excesiva* dependencia de herramientas de inteligencia artificial.
-  - Las dos cuestiones combinadas llevan al consejo de, si usáis IA, procurad usar una distinta a los compañeros.
-- Calidad de la presentación en la página de GitHub; es decir, la calidad del documento `README.md`, con sus gráficas,
-  tablas y demás adornos que hagan de él una buena herramienta de venta.
-- Presentación oral del trabajo y defensa del mismo.
+A mayor número de neuronas (de 32 a 128), la precisión sube de forma constante en casi todos los niveles, lo que demuestra que el sistema aprovecha bien el aumento de capacidad de cómputo para memorizar los patrones complejos de los MFCC.
 
-Entrega y presentación oral
----------------------------
+## Conclusiones
 
-Una vez completado, el alumno realizará un *pull-request* no más tarde del viernes 16 de enero a medianoche. El lunes
-19 de enero se realizará una presentación/defensa del trabajo usando la sala Meet de la asignatura. La duración de la
-defensa será de unos diez minutos de presentación por parte del alumno, seguidos de otros diez dedicados a preguntas y
-respuestas.
+Tras el desarrollo y optimización del sistema de reconocimiento de vocales, se han extraído las siguientes conclusiones clave que justifican la evolución tecnológica del ejercicio.
+
+En primer lugar, la etapa de extracción de características demostró ser el pilar fundamental del éxito del sistema. La comparativa entre el Periodograma, la Máxima Entropía (LPC) y los MFCC confirmó que estos últimos son la opción más robusta. Mientras que el LPC con un orden $p=14$ logró modelar adecuadamente los formantes para señales de 8000 Hz alcanzando un 84.50%, los MFCC superaron esta barrera gracias a priorizar la sensibilidad humana y a la decorrelación de sus coeficientes. Se determinó que la configuración de 26 filtros y 13 coeficientes es la más equilibrada, eliminando información redundante y el ruido del locutor.
+
+En cuanto al modelado acústico, el paso de un modelo de Gaussiana Única (72.10%) a los Modelos de Mezcla de Gaussianas (GMM) supuso un salto de calidad importante, alcanzando un 90.35% con 32 componentes. Este experimento demostró que las vocales no pueden representarse con una sola campana de Gauss, sino que requieren múltiples distribuciones para capturar la variabilidad de diferentes voces. Sin embargo, el GMM mostró limitaciones debido a su enfoque generativo y su sensibilidad a la inicialización aleatoria. 
+
+Finalmente, el sistema basado en Redes Neuronales (MLP) se consolidó como la solución superior con una exactitud máxima del 96.70%. La clave de este rendimiento reside en su enfoque discriminativo: en lugar de modelar la forma de los datos, la red aprende a trazar fronteras de decisión complejas entre las clases. El uso de la función de activación ReLU y una arquitectura de 2 capas con 128 neuronas permitió alcanzar este techo de rendimiento, demostrando que añadir más complejidad (como una tercera capa o más neuronas) no resultaba eficiente y corría el riesgo de caer en el sobreajuste (overfitting).
+
+En conclusión, el ejercicio concluye que la combinación de MFCC y MLP con ReLU constituye el sistema más fiable y preciso para el procesamiento de voz, cumpliendo con todos los requisitos de eficiencia y exactitud planteados en el enunciado.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
